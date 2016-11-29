@@ -1,0 +1,181 @@
+#!/usr/bin/env python3
+# kasiski
+# Implements a kasiski analysis on a given body of text
+import getopt, sys, fileinput, re
+
+def usage():
+    print("usage: kasiski [ -v ] [ -d ] [ -m length ] "
+           "[ infile [ outfile ] ]");
+
+#Searchs for repeated substrings in the cipherText of length
+#wordLength and adds them as new entries in the dataList
+def analyze(cipherText, wordLength, distancesRequired,
+            dataList):
+    found = False
+    for i in range(len(cipherText) - wordLength + 1):
+        firstSubstring = cipherText[i:i+wordLength]
+        if(i+wordLength >= len(cipherText) - wordLength + 1):
+            break
+        for x in range(i+wordLength, len(cipherText) - wordLength + 1):
+            secondSubstring = cipherText[x:x+wordLength]
+            newDict = {'substring':firstSubstring}
+            if (firstSubstring == secondSubstring and 
+                newDict not in dataList):
+                dataList.append(newDict);
+                found = True
+            
+    return found
+
+#counts the number of occurrances of searchString in text cipherText
+def countOccurrances(cipherText, searchString):
+    count = 0
+    for i in range(len(cipherText) - len(searchString) + 1):
+        curSubstring = cipherText[i:i+len(searchString)]
+        if curSubstring == searchString:
+            count += 1
+    return count
+
+
+#returns a list of indices representing occurrences of searchstring in 
+#cipherText
+def getLocations(cipherText, searchString):
+   return [m.start() for m in re.finditer(searchString, cipherText)]
+
+#returns list of distances based on locations
+def getDistances(locations):
+    distances = []
+    for i in range(len(locations)):
+        curNum = locations[i]
+        for x in range(i+1, len(locations)):
+            if i != x:
+                distances.append(abs(locations[i] - locations[x]))
+    return distances
+
+#prints kasiski dataList
+def printKasiski(dataList, distancesRequired, outputFile):
+   if len(dataList) > 0:
+       maxSubstringLength = dataList[0]['substring_length'] + 1
+       if distancesRequired:
+           print("Length   Count %s    Distance" %
+               ("Word".rjust(maxSubstringLength)),
+                 file=outputFile)
+       else:
+           print("Length   Count %s    Locations" % 
+                   ("Word".rjust(maxSubstringLength)),
+                    file=outputFile)
+       print("======   ===== %s    =========" % ("="*maxSubstringLength), 
+                                              file=outputFile)
+       lastElement = None
+       for x in dataList:
+           if distancesRequired:
+               lastElement = x['distances']
+           else:
+               lastElement = x['locations']
+
+           print ('%6s %s %s    %s ' % (x['substring_length'], 
+                                       str(x['numOccurrences']).rjust(7),
+                                       x['substring'].rjust(maxSubstringLength),
+                                       ' '.join(map(str, lastElement))), 
+                                       file=outputFile)
+    
+
+#runs a kasiski analysis printing out repeating substrings in the 
+#given ciphertext
+def kasiski(cipherText, minimumLength, distancesRequired, dataList, outputFile):
+    found = True
+    wordLength = minimumLength
+
+    #populate dataList with initial repeated substrings
+    while found:
+        found = analyze(cipherText, wordLength, distancesRequired, dataList)
+        wordLength += 1
+
+    #add # of occurrances to the substrings
+    #add starting locations for that string
+    for x in dataList:
+        x['substring_length'] = len(x['substring'])
+        x['numOccurrences'] = countOccurrances(cipherText, x['substring'])
+        x['locations'] = getLocations(cipherText, x['substring'])
+        if distancesRequired:
+            x['distances'] = sorted(getDistances(x['locations']))
+
+    dataList.sort(key=lambda d: (d['substring'])) 
+    dataList.sort(key=lambda d: (-d['substring_length'], -d['numOccurrences']))
+    printKasiski(dataList, distancesRequired, outputFile)
+
+#runs the kasiski analysis and handles file I/O
+def run(inputFile, outputFile, argCount, distancesRequired,
+         minimumWordLength):
+    dataList = []
+    cipherText = ""
+    if not inputFile:
+        inputFile = sys.stdin
+    else:
+        try: 
+            inputFile = open(inputFile, 'r');
+        except IOError:
+            print("Could not open input file.")
+            sys.exit(2)
+
+    if not outputFile:
+        outputFile = sys.stdout
+    else:
+        try: 
+            outputFile = open(outputFile, 'w+');
+        except IOError:
+            print ("Could not open output file.")
+            sys.exit(2)
+
+    #get cipher text
+    while 1:
+        char = inputFile.read(1)
+        if not char: break
+        if char.isalpha():
+            cipherText += char.upper()
+
+    #print("cipher: " + cipherText)
+    kasiski(cipherText, int(minimumWordLength), distancesRequired, dataList,
+            outputFile)
+    for x in dataList:
+        break
+        #print (x)
+    inputFile.close()
+    outputFile.close()
+
+def main():
+    try:
+        opts, args = getopt.getopt(sys.argv[1:], "vdm:")
+    except getopt.GetoptError as err:
+        # print help information and exit:
+        print (str(err)) # will print something like "option -a not recognized"
+        usage()
+        sys.exit(2)
+    
+    verbose = requiresDistances = requiresMinimumLength = False
+    minimumLength = 3
+    inputFile = ''
+    outputFile = ''
+    argCount = 1
+
+    for o, a in opts:
+        argCount += 1
+        if o == "-v":
+            verbose = True
+        elif o == "-d":
+            requiresDistances = True
+        elif o == "-m":
+            requiresMinimumLength = True
+            minimumLength = a
+            argCount += 1
+        else:
+            assert False, "unhandled option"
+    
+    if argCount < len(sys.argv):
+        inputFile = sys.argv[argCount]
+    if argCount+1 < len(sys.argv):
+        outputFile = sys.argv[argCount+1]
+    
+    run(inputFile, outputFile, argCount, requiresDistances, minimumLength);
+
+if __name__ == "__main__":
+    main()

@@ -1,0 +1,8 @@
+#kasiski
+
+Implements a kasiski analysis on a given body of text searching for repeated substrings and optionally the distances between them.
+
+usage: kasiski [ -v ] [ -d ] [ -m length ] [ infile [ outfile ] ]
+
+executables will need to be preceded with "./" unless 
+$PATH is updated appropriately.
